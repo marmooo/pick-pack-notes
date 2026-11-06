@@ -1,0 +1,137 @@
+/**
+ * rhythm-game-worker.js
+ * Worker adapter for RhythmGame (Flip Flap Dodge).
+ *
+ * main → worker : init / setNotes / start / tick / stop / moveLane / setLane /
+ *                 setHp / updateOptions / resize
+ * worker → main : noteCount / judgment / judgmentDetail / hp / ended /
+ *                 dying（HP 0 になった瞬間） / gameOver（死亡演出が終わった）
+ */
+
+import { RhythmGame } from "./rhythm-game.js";
+
+let game = null;
+
+function postDetail(dead) {
+  self.postMessage({
+    type: "judgmentDetail",
+    score: game.score,
+    combo: game.maxCombo,
+    pick: game.pickCount,
+    miss: game.missCount,
+    dodge: game.pickCount,
+    hit: game.missCount,
+    pickRate: game.pickRate,
+    hp: game.hp,
+    maxHp: game.maxHp,
+    progress: game.progress,
+    dead,
+  });
+}
+
+self.onmessage = (e) => {
+  const msg = e.data;
+  switch (msg.type) {
+    case "init": {
+      game = new RhythmGame(
+        {
+          note: msg.noteCanvas,
+          particle: msg.particleCanvas,
+          ui: msg.uiCanvas,
+        },
+        msg.options ?? {},
+      );
+      game.onHpChange = (hp, maxHp) => {
+        self.postMessage({ type: "hp", hp, maxHp });
+      };
+      game.onJudgment = (judgment, combo, score) => {
+        self.postMessage({ type: "judgment", judgment, combo, score });
+      };
+      game.onEnded = () => {
+        // 詳細カウントを送ってから ended
+        postDetail(false);
+        self.postMessage({ type: "ended" });
+      };
+      game.onDeath = () => {
+        // 結果画面用の集計は死亡時点で確定するので、ここで送っておく
+        postDetail(true);
+        self.postMessage({ type: "dying" });
+      };
+      game.onGameOver = () => {
+        self.postMessage({ type: "gameOver" });
+      };
+      break;
+    }
+
+    case "setNotes": {
+      if (!game) break;
+      const n = game.setNotesRaw(msg.notes);
+      self.postMessage({ type: "noteCount", count: n });
+      break;
+    }
+
+    case "start": {
+      if (game) game.resetState(!!msg.preserveHp);
+      break;
+    }
+
+    case "tick": {
+      if (!game) break;
+      game.tick(msg.currentTime);
+      break;
+    }
+
+    case "stop": {
+      if (game) {
+        // 曲終了で tick が止まる前に通過中のブロックを確定し、
+        // judgmentDetail + ended を送る（スコアが 0 のまま結果画面に
+        // 行かないようにする）
+        if (msg.finalize !== false) {
+          game.finalize(msg.currentTime);
+        }
+        game.stop();
+      }
+      self.postMessage({
+        type: "stopped",
+        finalize: msg.finalize !== false,
+      });
+      break;
+    }
+
+    case "moveLane": {
+      if (game) game.moveLane(msg.dir);
+      break;
+    }
+
+    case "setLane": {
+      if (game) game.setLane(msg.lane);
+      break;
+    }
+
+    case "setHp": {
+      if (game) game.setHp(msg.hp);
+      break;
+    }
+
+    case "setCharacter": {
+      if (game) game.setCharacterSprite(msg.bitmap ?? null);
+      break;
+    }
+
+    case "updateOptions": {
+      if (game) game.updateOptions(msg.patch);
+      break;
+    }
+
+    case "resize": {
+      if (game) {
+        game.resize(msg.width, msg.height, {
+          topInset: msg.topInset,
+          buttonZoneHeight: msg.buttonZoneHeight,
+          dpr: msg.dpr,
+        });
+      }
+      break;
+    }
+  }
+};

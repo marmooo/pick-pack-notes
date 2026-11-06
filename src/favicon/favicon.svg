@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2a52"/>
+      <stop offset="100%" stop-color="#1a1a36"/>
+    </linearGradient>
+    <linearGradient id="noteA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7cf0ff"/>
+      <stop offset="100%" stop-color="#2bb8e8"/>
+    </linearGradient>
+    <linearGradient id="noteB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff9ad8"/>
+      <stop offset="100%" stop-color="#e84db0"/>
+    </linearGradient>
+    <linearGradient id="noteC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b8ff7a"/>
+      <stop offset="100%" stop-color="#5ed63a"/>
+    </linearGradient>
+    <linearGradient id="catch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe66b"/>
+      <stop offset="100%" stop-color="#ffb020"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="url(#bg)"/>
+
+  <rect x="8"  y="8" width="11" height="48" fill="#ffffff" opacity="0.05"/>
+  <rect x="21" y="8" width="11" height="48" fill="#ffffff" opacity="0.05"/>
+  <rect x="34" y="8" width="11" height="48" fill="#ffffff" opacity="0.05"/>
+  <rect x="47" y="8" width="9"  height="48" fill="#ffffff" opacity="0.05"/>
+
+  <!-- falling notes -->
+  <rect x="9"  y="10" width="9" height="14" rx="2.5" fill="url(#noteA)"/>
+  <rect x="22" y="18" width="9" height="11" rx="2.5" fill="url(#noteB)"/>
+  <rect x="35" y="8"  width="9" height="16" rx="2.5" fill="url(#noteC)"/>
+  <rect x="22" y="36" width="9" height="8" rx="2.5" fill="url(#noteB)"/>
+
+  <!-- catch glow (stronger, more opaque) -->
+  <circle cx="26.5" cy="47" r="11" fill="#ffe66b" opacity="0.55"/>
+  <circle cx="26.5" cy="47" r="7" fill="#ffffff" opacity="0.45"/>
+
+  <!-- sparkles (near-opaque) -->
+  <circle cx="19" cy="41" r="2.2" fill="#ffffff"/>
+  <circle cx="34" cy="43" r="1.8" fill="#ffffff"/>
+  <circle cx="27" cy="38" r="2.0" fill="#ffe66b"/>
+  <circle cx="22" cy="46" r="1.4" fill="#ffffff"/>
+  <circle cx="31" cy="48" r="1.5" fill="#fff7c2"/>
+
+  <!-- star-like sparkle accents -->
+  <path d="M15 45 L16.2 47.5 L19 48 L16.2 48.5 L15 51 L13.8 48.5 L11 48 L13.8 47.5 Z" fill="#ffffff"/>
+  <path d="M37 40 L37.9 42 L40 42.4 L37.9 42.8 L37 44.8 L36.1 42.8 L34 42.4 L36.1 42 Z" fill="#ffe66b"/>
+
+  <!-- collector bowl + core -->
+  <path d="M18 52 C18 46 21 44 26.5 44 C32 44 35 46 35 52 Z" fill="url(#catch)"/>
+  <ellipse cx="26.5" cy="51.5" rx="8.5" ry="3.2" fill="#fff3b0" opacity="0.85"/>
+  <circle cx="26.5" cy="49.5" r="3.2" fill="#ffffff"/>
+</svg>
