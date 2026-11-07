@@ -1440,7 +1440,7 @@ function drawScoreCard(grade, pickRate) {
   const picked = lastResult.pick ?? 0;
   const missed = lastResult.miss ?? 0;
   const stats = [
-    ["PICKED", picked, palette.pick],
+    ["PICKED", picked, palette.brand],
     ["MISS", missed, palette.miss],
   ];
   for (const [i, [label, value, color]] of stats.entries()) {
