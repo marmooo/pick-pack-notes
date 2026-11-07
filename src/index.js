@@ -90,14 +90,14 @@ const DEFAULT_CONFIG = {
   accentColor: "", // "" = 未設定（currentColor に自動追従。テーマ切替でも見えなくならない）
   judgeLineColor: "", // "" = 未設定（uiColor / currentColor に自動追従）
   laneLineColor: "", // "" = 未設定（uiColor / currentColor に自動追従）
-  backgroundPreset: "/pick-pack-notes/data/japan-mountain.webp", // 初期値はJapan Mountain。""=なし / プリセットURL / "custom"（本体は IndexedDB に保存）
+  backgroundPreset: "/pick-pack-notes/data/fantasy-lake.webp", // 初期値は Fantasy Lake。""=なし / プリセットURL / "custom"（本体は IndexedDB に保存）
   // Canvas 解像度の上限（devicePixelRatio をこの値でキャップ）。
   // 既定 1 = 負荷を抑えて安定優先。高いほどシャープだがメモリ/GPU 負荷が増え、モバイルで不安定になりやすい。
   maxPixelRatio: 1,
   // Midy の sample キャッシュ粒度。none → ads → adsr → note → segment → chunk。
   // 高いほど複雑な MIDI で効率が良いが、iOS の OfflineAudioContext 不具合で落ちやすくなる。
   cacheMode: isIOS ? "none" : "chunk",
-  emojiMode: false, // true = 食べ物絵文字でノートを表示
+  emojiMode: true, // true = 食べ物絵文字でノートを表示
   characterId: 1, // 1〜10 = characters/N.webp / "custom" = ユーザー画像
 };
 

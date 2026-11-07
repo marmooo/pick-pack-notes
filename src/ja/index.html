@@ -781,7 +781,7 @@
             </div>
 
             <div id="keyHintStart" class="d-flex gap-1 mt-3 flex-wrap justify-content-center"></div>
-            <p class="small text-muted mt-2 mb-0 text-center">← / → キーや画面の左右タップで 1 レーンずつ移動、ドラッグでその位置へ直接移動。主旋律に合わせて音を集めよう！</p>
+            <p class="small text-muted mt-2 mb-0 text-center">← / → キーや画面の左右タップで 1 レーンずつ移動、ドラッグでその位置へ直接移動。落ちてくる音を集めよう！</p>
           </div>
 
           <footer class="pt-md-5 alert text-center">
@@ -820,7 +820,7 @@
           <div class="d-flex gap-1 flex-wrap justify-content-center mb-1">
             <span id="keyHintReady" class="d-inline-flex gap-1 flex-wrap justify-content-center"></span>
           </div>
-          <p class="small text-muted mb-1">← / → キーや画面の左右タップで 1 レーンずつ移動、ドラッグでその位置へ直接移動。主旋律に合わせて音を集めよう！</p>
+          <p class="small text-muted mb-1">← / → キーや画面の左右タップで 1 レーンずつ移動、ドラッグでその位置へ直接移動。落ちてくる音を集めよう！</p>
           <p class="small text-muted mb-3">スペースキーでもスタートできます</p>
           <p class="small text-muted mb-1">難易度：<strong id="diffLabel" class="text-warning-emphasis">—</strong>
             　ノート数：<span id="noteCountLabel">—</span></p>
@@ -918,7 +918,7 @@
                     <option value="EXPERT">EXPERT — ≒7.0〜10 nps（上級者向け）</option>
                   </select>
                   <div class="small text-muted mt-1">
-                    ※主旋律を抽出し、旋律のない空間を伴奏音で補完して生成します。自機のキャラの位置を合わせればタップ不要で得点になります。<br>
+                    ※主旋律を抽出し、旋律のない空間を伴奏音で補完して生成します。<br>
                     <span id="audioDiffNote" class="hidden">※音声モードでは難易度を変えると次回再生時に譜面を自動で再生成します。</span>
                   </div>
                 </div>
@@ -1083,8 +1083,8 @@
 
                 <div class="mb-3">
                   <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="emojiMode">
-                    <label class="form-check-label" for="emojiMode">絵文字ノート（食べ物絵文字で降らせる）</label>
+                    <input class="form-check-input" type="checkbox" id="emojiMode" checked>
+                    <label class="form-check-label" for="emojiMode">絵文字ノート</label>
                   </div>
                   <div class="small text-muted mt-1">
                     ノーツの代わりに食べ物の絵文字が降ります。
@@ -1134,12 +1134,12 @@
                     <option value="/pick-pack-notes/data/japan-river.webp">Image 4: Japan River</option>
                     <option value="/pick-pack-notes/data/japan-lake.webp">Image 5: Japan Lake</option>
                     <option value="/pick-pack-notes/data/japan-sky.webp">Image 6: Japan Sky</option>
-                    <option value="/pick-pack-notes/data/japan-mountain.webp" selected>Image 7: Japan Mountain</option>
+                    <option value="/pick-pack-notes/data/japan-mountain.webp">Image 7: Japan Mountain</option>
                     <option value="/pick-pack-notes/data/japan-pagoda.webp">Image 8: Japan Pagoda</option>
                     <option value="/pick-pack-notes/data/japan-cave.webp">Image 9: Japan Cave</option>
                     <option value="/pick-pack-notes/data/japan-shrine.webp">Image 10: Japan Shrine</option>
                     <option value="/pick-pack-notes/data/fantasy-forest.webp">Image 11: Fantasy Forest</option>
-                    <option value="/pick-pack-notes/data/fantasy-lake.webp">Image 12: Fantasy Lake</option>
+                    <option value="/pick-pack-notes/data/fantasy-lake.webp" selected>Image 12: Fantasy Lake</option>
                     <option value="/pick-pack-notes/data/fantasy-sea.webp">Image 13: Fantasy Sea</option>
                     <option value="/pick-pack-notes/data/fantasy-flare.webp">Image 14: Fantasy Flare</option>
                     <option value="/pick-pack-notes/data/cyber-space.webp">Image 15: Cyber Space</option>
