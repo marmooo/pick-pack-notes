@@ -446,6 +446,8 @@ export function thinNotes(
       judgment: null,
       holdActive: false,
       isSlice: false, // ロングノートを分解して生成された断片ノート
+      // 論理ノート ID。ロング分割後のスライスでも共有し、絵文字を揃える。
+      groupId: ci,
     });
   }
 
@@ -462,7 +464,7 @@ export function thinNotes(
       // 短いノートはそのまま
       expanded.push(note);
     } else {
-      // スライスに分割
+      // スライスに分割（同一 groupId で絵文字を共有）
       const sliceCount = Math.ceil(dur / (SLICE_SIZE + SLICE_GAP));
       const sliceDur = (dur - SLICE_GAP * (sliceCount - 1)) / sliceCount;
       for (let s = 0; s < sliceCount; s++) {
@@ -483,10 +485,14 @@ export function thinNotes(
           judgment: null,
           holdActive: false,
           isSlice: s > 0, // 2枚目以降がスライス（薄く描画）
+          groupId: note.groupId,
         });
       }
     }
   }
+
+  // 絵文字インデックスをグループ単位でランダム割り当て（noteNumber % N は使わない）
+  assignEmojiIndices(expanded);
 
   // 後処理パス2：時間軸の重なりを除去する。
   // 前のノートの endTime が次のノートの startTime を超える場合クリップする。
@@ -719,6 +725,53 @@ export const FOOD_EMOJIS = [
   "🫙",
   "🧂",
 ];
+
+/**
+ * 論理ノート（groupId）ごとに絵文字インデックスをランダム割り当てする。
+ * - 同一 groupId（ロング分割スライス同士）は必ず同じ絵文字
+ * - noteNumber % N は使わず、出やすい音高に絵文字が偏らないようにする
+ * - グループ数が絵文字数を超える場合はシャッフルを繰り返して循環
+ */
+function assignEmojiIndices(notes, emojiCount = FOOD_EMOJIS.length) {
+  if (!notes || notes.length === 0 || emojiCount <= 0) return;
+  const groups = [];
+  const seen = new Set();
+  for (const n of notes) {
+    const g = n.groupId;
+    if (g == null || seen.has(g)) continue;
+    seen.add(g);
+    groups.push(g);
+  }
+  const shuffle = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  };
+  let pool = shuffle(
+    Array.from({ length: emojiCount }, (_, i) => i),
+  );
+  let poolPos = 0;
+  const map = new Map();
+  for (const g of groups) {
+    if (poolPos >= pool.length) {
+      pool = shuffle(
+        Array.from({ length: emojiCount }, (_, i) => i),
+      );
+      poolPos = 0;
+    }
+    map.set(g, pool[poolPos++]);
+  }
+  for (const n of notes) {
+    const g = n.groupId;
+    n.emojiIndex = g != null && map.has(g)
+      ? map.get(g)
+      : ((n.noteNumber % emojiCount) + emojiCount) % emojiCount;
+  }
+}
 
 // 絵文字をオフスクリーンキャンバスに描画してキャッシュする。
 // キー: `${emoji}@${size}` → Canvas / OffscreenCanvas
@@ -1288,7 +1341,10 @@ export class RhythmGame {
       alpha: 1,
     });
     this.#uiDirty = true;
-    this.onJudgment?.(judgment, this.#combo, this.score);
+    this.onJudgment?.(judgment, this.#combo, this.score, {
+      lane: note.lane,
+      noteNumber: note.noteNumber,
+    });
   }
 
   #miss(note) {
@@ -1306,7 +1362,10 @@ export class RhythmGame {
       lane: note.lane,
       alpha: 1,
     });
-    this.onJudgment?.(Judgment.MISS, this.#combo, this.score);
+    this.onJudgment?.(Judgment.MISS, this.#combo, this.score, {
+      lane: note.lane,
+      noteNumber: note.noteNumber,
+    });
   }
 
   #die() {
@@ -1613,9 +1672,14 @@ export class RhythmGame {
       }
 
       // 絵文字モード：色付きバーの代わりに絵文字を落とす
+      // emojiIndex は thinNotes 時に groupId 単位でランダム割り当て済み
       if (o.emojiMode && o.emojis && o.emojis.length > 0) {
         const emojis = o.emojis;
-        const emoji = emojis[note.noteNumber % emojis.length];
+        const idx = Number.isFinite(note.emojiIndex)
+          ? ((note.emojiIndex % emojis.length) + emojis.length) % emojis.length
+          : ((note.noteNumber % emojis.length) + emojis.length) %
+            emojis.length;
+        const emoji = emojis[idx];
         // ノートの中心（透視変換の中点）。長いノートは下端（判定線側）に寄せる
         const noteH = drawBot - drawTop;
         const midY = noteH > laneW * 0.6
