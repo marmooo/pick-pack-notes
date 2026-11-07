@@ -320,6 +320,9 @@ function emptyResult(total) {
   };
 }
 let lastResult = emptyResult(0);
+// Judgment timeline for the result score card (no HP / death in this game).
+let playHistory = [];
+let playStartPerf = 0;
 let currentHp = 100;
 let pendingAnalysisResolve = null;
 let pendingAnalysisReject = null;
@@ -745,11 +748,19 @@ function onWorkerMessage(e) {
   const msg = e.data;
   switch (msg.type) {
     case "judgment":
+      playHistory.push({
+        judgment: msg.judgment,
+        lane: msg.lane,
+        noteNumber: msg.noteNumber,
+        t: performance.now() - playStartPerf,
+        hp: currentHp,
+      });
       lastResult.score = msg.score;
       lastResult.combo = Math.max(lastResult.combo, msg.combo);
       updateScoreDisplay(msg.score);
       break;
     case "hp":
+      // 互換メッセージのみ。Pick Pack Notes に HP / 死亡はない。
       currentHp = msg.hp;
       lastResult.hp = msg.hp;
       lastResult.maxHp = msg.maxHp;
@@ -1079,6 +1090,8 @@ function beginPlayback() {
   // ここでは MIDI モードの setMasterVolume は不要。audio モードは即時復元で OK。
   if (mode === "audio") player.volume = 1;
   currentHp = 100;
+  playHistory = [];
+  playStartPerf = performance.now();
   lastResult = emptyResult(laneNotes.length);
   worker.postMessage({ type: "start" });
   gamePhase = "playing";
@@ -1342,8 +1355,371 @@ function showResult() {
   if (rLanes) rLanes.textContent = String(config.laneCount);
   if (rScroll) rScroll.textContent = String(config.scrollSpeed);
 
+  drawScoreCard(grade, rateStr);
+
   showScreen("result");
 }
+
+function drawScoreCard(grade, pickRate) {
+  const canvas = document.getElementById("scoreCardCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  // Polar score card: streak silhouette + MISS spikes +
+  // colorful noteNumber constellation (time→angle, pitch→radius, hue→color).
+  const palette = {
+    pick: "#66ffcc",
+    pack: "#ffff66",
+    miss: "#ff5b61",
+    brand: "#66b8ff",
+    mute: "#aab5b5",
+    ink: "#f5f4ec",
+  };
+  const gradeColors = {
+    S: "#ffd166",
+    A: "#64d98b",
+    B: "#66b8ff",
+    C: "#ff9a64",
+    D: "#ff5b61",
+  };
+  const accent = gradeColors[grade] || palette.pick;
+
+  const bg = ctx.createLinearGradient(0, 0, w, h);
+  bg.addColorStop(0, "#10151b");
+  bg.addColorStop(0.58, "#151d22");
+  bg.addColorStop(1, "#0d1116");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  const glow = ctx.createRadialGradient(870, 315, 10, 870, 315, 560);
+  glow.addColorStop(0, "#66ffcc16");
+  glow.addColorStop(1, "#0000");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(66, 70, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = "800 64px system-ui, sans-serif";
+  ctx.fillStyle = palette.ink;
+  ctx.fillText("Pick ", 88, 101);
+  const packX = 88 + ctx.measureText("Pick ").width;
+  ctx.fillStyle = palette.brand;
+  ctx.fillText("Pack ", packX, 101);
+  const notesX = packX + ctx.measureText("Pack ").width;
+  ctx.fillStyle = palette.ink;
+  ctx.fillText("Notes", notesX, 101);
+  ctx.font = "600 22px system-ui, sans-serif";
+  ctx.fillStyle = palette.mute;
+  ctx.fillText(
+    `${config.difficulty}   ·   ${config.laneCount} LANES   ·   CLEAR`,
+    88,
+    141,
+  );
+
+  const history = playHistory.slice(-200);
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillStyle = palette.mute;
+  ctx.fillText("SCORE", 76, 190);
+  ctx.font = "800 72px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillStyle = palette.ink;
+  ctx.fillText(String(lastResult.score).padStart(7, "0"), 72, 250);
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillStyle = palette.mute;
+  ctx.fillText("PICK RATE", 76, 310);
+  ctx.font = "800 68px system-ui, sans-serif";
+  ctx.fillStyle = palette.ink;
+  ctx.fillText(`${pickRate}%`, 72, 370);
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillStyle = palette.mute;
+  ctx.fillText("MAX STREAK", 76, 430);
+  ctx.font = "800 58px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillStyle = palette.ink;
+  ctx.fillText(String(lastResult.combo), 72, 490);
+
+  const picked = lastResult.pick ?? 0;
+  const missed = lastResult.miss ?? 0;
+  const stats = [
+    ["PICKED", picked, palette.pick],
+    ["MISS", missed, palette.miss],
+  ];
+  for (const [i, [label, value, color]] of stats.entries()) {
+    const x = 76 + i * 160;
+    ctx.font = "700 20px system-ui, sans-serif";
+    ctx.fillStyle = color;
+    ctx.fillText(label, x, 550);
+    ctx.font = "800 30px system-ui, sans-serif";
+    ctx.fillText(String(value), x, 580);
+  }
+
+  const center = { x: 870, y: 315 };
+  const baseR = 168;
+  const maxR = 300;
+  const peak = Math.max(1, Number(lastResult.combo) || 1);
+
+  const samples = [];
+  let streak = 0;
+  let pitchMin = Infinity;
+  let pitchMax = -Infinity;
+  for (let i = 0; i < history.length; i++) {
+    const key = String(history[i].judgment).toLowerCase();
+    const lane = Number(history[i].lane);
+    const hasLane = Number.isFinite(lane);
+    const nn = Number(history[i].noteNumber);
+    const hasPitch = Number.isFinite(nn);
+    if (hasPitch) {
+      if (nn < pitchMin) pitchMin = nn;
+      if (nn > pitchMax) pitchMax = nn;
+    }
+    const evT = Number(history[i].t);
+    const t = Number.isFinite(evT) ? evT : i;
+    if (key === "miss" || key === "hit") {
+      streak = 0;
+      samples.push({
+        t,
+        streak: 0,
+        miss: true,
+        lane: hasLane ? lane : null,
+        noteNumber: hasPitch ? nn : null,
+      });
+    } else {
+      streak += 1;
+      samples.push({
+        t,
+        streak,
+        miss: false,
+        lane: hasLane ? lane : null,
+        noteNumber: hasPitch ? nn : null,
+      });
+    }
+  }
+  if (!Number.isFinite(pitchMin) || !Number.isFinite(pitchMax)) {
+    pitchMin = 48;
+    pitchMax = 72;
+  }
+  if (pitchMax <= pitchMin) pitchMax = pitchMin + 1;
+
+  let tMin = Infinity, tMax = -Infinity;
+  for (const s of samples) {
+    if (s.t < tMin) tMin = s.t;
+    if (s.t > tMax) tMax = s.t;
+  }
+  if (!Number.isFinite(tMin) || !Number.isFinite(tMax) || tMax <= tMin) {
+    tMin = 0;
+    tMax = Math.max(1, samples.length);
+  }
+  const tSpan = tMax - tMin;
+  const angleAtT = (t) =>
+    -Math.PI / 2 + ((Number(t) - tMin) / tSpan) * Math.PI * 2;
+  const radiusAt = (s) => baseR + (Math.min(s, peak) / peak) * (maxR - baseR);
+  // Pitch → radius: low notes inward, high notes outward (spread in the ring)
+  const pitchRadius = (nn) => {
+    const u = (nn - pitchMin) / (pitchMax - pitchMin);
+    return baseR + 22 + u * (maxR - baseR - 40);
+  };
+  // Pitch → vivid hue (not a legend — just a colorful field)
+  const pitchColor = (nn, alpha = 0.85) => {
+    const u = (nn - pitchMin) / (pitchMax - pitchMin);
+    const hue = (u * 300 + 20) % 360; // warm→cool sweep, skip muddy zone a bit
+    return `hsla(${hue}, 78%, 62%, ${alpha})`;
+  };
+
+  for (const radius of [baseR, (baseR + maxR) / 2, maxR]) {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = "#ffffff14";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  for (let i = 0; i < 12; i++) {
+    const angle = -Math.PI / 2 + i * Math.PI / 6;
+    ctx.beginPath();
+    ctx.moveTo(
+      center.x + Math.cos(angle) * (maxR - 6),
+      center.y + Math.sin(angle) * (maxR - 6),
+    );
+    ctx.lineTo(
+      center.x + Math.cos(angle) * (maxR + 10),
+      center.y + Math.sin(angle) * (maxR + 10),
+    );
+    ctx.strokeStyle = "#ffffff30";
+    ctx.lineWidth = i % 3 === 0 ? 2 : 1;
+    ctx.stroke();
+  }
+
+  if (samples.length > 0) {
+    // Soft streak silhouette (keeps the run shape readable)
+    ctx.beginPath();
+    for (let i = 0; i < samples.length; i++) {
+      const a = angleAtT(samples[i].t);
+      const r = radiusAt(samples[i].streak);
+      const x = center.x + Math.cos(a) * r;
+      const y = center.y + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    for (let i = samples.length - 1; i >= 0; i--) {
+      const a = angleAtT(samples[i].t);
+      ctx.lineTo(
+        center.x + Math.cos(a) * baseR,
+        center.y + Math.sin(a) * baseR,
+      );
+    }
+    ctx.closePath();
+    const fill = ctx.createRadialGradient(
+      center.x,
+      center.y,
+      baseR,
+      center.x,
+      center.y,
+      maxR,
+    );
+    fill.addColorStop(0, "#66ffcc18");
+    fill.addColorStop(0.65, "#66ffcc33");
+    fill.addColorStop(1, "#66ffcc22");
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.beginPath();
+    for (let i = 0; i < samples.length; i++) {
+      const a = angleAtT(samples[i].t);
+      const r = radiusAt(samples[i].streak);
+      const x = center.x + Math.cos(a) * r;
+      const y = center.y + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = palette.pick;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.8;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Colorful pitch constellation: success notes only
+    // angle = time, radius = pitch — scatters the melody across the ring
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      if (s.miss || s.noteNumber == null) continue;
+      const a = angleAtT(s.t);
+      const r = pitchRadius(s.noteNumber);
+      const x = center.x + Math.cos(a) * r;
+      const y = center.y + Math.sin(a) * r;
+      // soft glow
+      ctx.beginPath();
+      ctx.arc(x, y, 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = pitchColor(s.noteNumber, 0.18);
+      ctx.fill();
+      // core
+      ctx.beginPath();
+      ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = pitchColor(s.noteNumber, 0.9);
+      ctx.fill();
+    }
+
+    // MISS spikes on top
+    for (let i = 0; i < samples.length; i++) {
+      if (!samples[i].miss) continue;
+      const a = angleAtT(samples[i].t);
+      const x0 = center.x + Math.cos(a) * (baseR - 4);
+      const y0 = center.y + Math.sin(a) * (baseR - 4);
+      const x1 = center.x + Math.cos(a) * (maxR - 8);
+      const y1 = center.y + Math.sin(a) * (maxR - 8);
+      ctx.strokeStyle = palette.miss;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = palette.miss;
+      ctx.beginPath();
+      ctx.arc(
+        center.x + Math.cos(a) * maxR,
+        center.y + Math.sin(a) * maxR,
+        4.2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, (baseR + maxR) / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = palette.pick;
+    ctx.globalAlpha = 0.2;
+    ctx.lineWidth = 10;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, 155, 0, Math.PI * 2);
+  ctx.fillStyle = "#111820";
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff30";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillStyle = palette.mute;
+  ctx.fillText("RANK", center.x, center.y - 77);
+  ctx.font = "900 160px system-ui, sans-serif";
+  ctx.fillStyle = accent;
+  ctx.fillText(grade, center.x, center.y + 58);
+  ctx.textAlign = "left";
+}
+
+function scoreCardFileName() {
+  return `pick-pack-notes-${new Date().toISOString().slice(0, 10)}.png`;
+}
+
+function downloadScoreCard(blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = scoreCardFileName();
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById("btnSaveScore")?.addEventListener("click", () => {
+  const canvas = document.getElementById("scoreCardCanvas");
+  canvas?.toBlob((blob) => blob && downloadScoreCard(blob), "image/png");
+});
+
+document.getElementById("btnShareScore")?.addEventListener("click", () => {
+  const text =
+    `Pick Pack Notes: ${lastResult.score} points · CLEAR · ${config.difficulty}`;
+  const canvas = document.getElementById("scoreCardCanvas");
+  const share = async () => {
+    try {
+      if (canvas && navigator.share && navigator.canShare) {
+        const blob = await new Promise((res) =>
+          canvas.toBlob(res, "image/png")
+        );
+        if (blob) {
+          const file = new File([blob], scoreCardFileName(), {
+            type: "image/png",
+          });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ text, files: [file] });
+            return;
+          }
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+    const url = `https://twitter.com/intent/tweet?text=${
+      encodeURIComponent(text)
+    }`;
+    globalThis.open(url, "_blank", "noopener,noreferrer");
+  };
+  share();
+});
 
 // ---------------------------------------------------------------------------
 // Key hints
@@ -2869,6 +3245,8 @@ midy.addEventListener("stopped", () => {
 midy.addEventListener("seeked", () => {
   if (mode !== "midi" || gamePhase !== "playing") return;
   worker.postMessage({ type: "start" });
+  playHistory = [];
+  playStartPerf = performance.now();
   lastResult = emptyResult(laneNotes.length);
   worker.postMessage({
     type: "tick",
@@ -2879,6 +3257,8 @@ midy.addEventListener("seeked", () => {
 midy.addEventListener("looped", () => {
   if (mode !== "midi") return;
   worker.postMessage({ type: "start" });
+  playHistory = [];
+  playStartPerf = performance.now();
   lastResult = emptyResult(laneNotes.length);
 });
 
@@ -3051,6 +3431,8 @@ function beginAudioRound() {
       clearTimeout(endingFadeTimeoutId);
       endingFadeTimeoutId = null;
     }
+    playHistory = [];
+    playStartPerf = performance.now();
     lastResult = emptyResult(laneNotes.length);
     worker?.postMessage({ type: "start" });
     isPaused = false;
