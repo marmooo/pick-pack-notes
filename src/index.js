@@ -1696,30 +1696,20 @@ function getAppBaseUrl() {
 }
 
 /**
- * X 共有用のリンク。
- * MIDI ライブラリ由来なら短い形式 ?c=<siteId>&i=<index>（classical は &db=c）、
- * それ以外（ローカル MIDI / 音声）はアプリへのリンク。
+ * 共有用 URL。ライブラリ由来なら現在の ?c=&i= を使い、それ以外はアプリ本体。
+ * （他ゲームと同じ location ベース）
  */
 function getShareUrl() {
-  if (!shareableMidiRef) return getAppBaseUrl();
-  const params = new URLSearchParams();
-  params.set("c", shareableMidiRef.c);
-  params.set("i", String(shareableMidiRef.i));
-  if (shareableMidiRef.db === "c") params.set("db", "c");
-  if (shareableMidiRef.title) params.set("title", shareableMidiRef.title);
-  return `${getAppBaseUrl()}?${params.toString()}`;
-}
-
-/** ライブラリ行から短縮共有用の参照を作る */
-function shareRefFromLibraryRow(row) {
-  if (!row?.file) return null;
-  const c = row.collectionId || String(row.file).split("/")[0] || "";
-  const i = Number.isInteger(row.index)
-    ? row.index
-    : Number.parseInt(String(row.index ?? ""), 10);
-  if (!c || !Number.isInteger(i) || i < 0) return null;
-  const db = midiLibrary.midiDB === MIDI_DB_CLASSICAL ? "c" : "m";
-  return { c, i, db, title: row.title || "" };
+  const params = new URLSearchParams(location.search);
+  if (params.has("c") && params.has("i")) {
+    const share = new URLSearchParams();
+    share.set("c", params.get("c"));
+    share.set("i", params.get("i"));
+    if (params.get("db") === "c") share.set("db", "c");
+    // if (params.get("title")) share.set("title", params.get("title"));
+    return `${getAppBaseUrl()}?${share.toString()}`;
+  }
+  return getAppBaseUrl();
 }
 
 document.getElementById("btnShareScore")?.addEventListener("click", () => {
@@ -2800,7 +2790,6 @@ async function loadFile(file) {
   if (kind === "midi") {
     const buf = await file.arrayBuffer();
     // ローカル MIDI にはライブラリ由来の著作権情報がない（ファイル名のみ表示しない）
-    // shareableMidiRef は switchMode → clearTrackMeta でクリアされる
     clearLibraryUrl();
     await loadMIDIBytes(new Uint8Array(buf), null);
     return;
@@ -2864,7 +2853,6 @@ function updateUrlFromLibraryRow(row) {
   params.set("c", c);
   params.set("i", String(i));
   if (midiLibrary.midiDB === MIDI_DB_CLASSICAL) params.set("db", "c");
-  if (row.title) params.set("title", row.title);
   const url = `${location.pathname}?${params.toString()}${location.hash || ""}`;
   history.replaceState(null, "", url);
 }
@@ -2890,8 +2878,6 @@ const midiLibrary = new MidiLibrary({
     const midiUrl = `${midiLibrary.midiDB}/${row.file}`;
     const buf = await (await fetch(midiUrl)).arrayBuffer();
     await loadMIDIBytes(new Uint8Array(buf), trackMetaFromLibraryRow(row));
-    // switchMode → clearTrackMeta の後にセットする（短縮共有リンク用）
-    shareableMidiRef = shareRefFromLibraryRow(row);
     updateUrlFromLibraryRow(row);
     libraryModal.hide();
   },
@@ -2940,14 +2926,6 @@ initMidiCategoryRadios();
 
 /** @type {{ title: string, composer: string, siteName: string, web: string, license: string } | null} */
 let currentTrackMeta = null;
-
-/**
- * MIDI ライブラリから読み込んだときの短縮共有参照。
- * { c: collectionId, i: index, db: "m"|"c", title?: string }
- * ローカルファイル / 音声モードでは null。
- * @type {{ c: string, i: number, db: "m"|"c", title?: string } | null}
- */
-let shareableMidiRef = null;
 
 function isProbablyUrl(s) {
   if (!s) return false;
@@ -3023,12 +3001,7 @@ async function loadMIDIFromQuery() {
     const midiUrl = `${dbBase}/${row.file}`;
     const buf = await (await fetch(midiUrl)).arrayBuffer();
     await loadMIDIBytes(new Uint8Array(buf), trackMetaFromLibraryRow(row));
-    shareableMidiRef = {
-      c: collectionId,
-      i: index,
-      db: dbBase === MIDI_DB_CLASSICAL ? "c" : "m",
-      title: row.title || query.get("title") || "",
-    };
+    // URL は既に ?c=&i= なのでそのまま共有に使える
   } catch (error) {
     console.error("Failed to load MIDI from query:", error);
     alert(t("midiFromQueryFailedPrefix") + (error?.message || error));
@@ -3037,7 +3010,6 @@ async function loadMIDIFromQuery() {
 
 function clearTrackMeta() {
   currentTrackMeta = null;
-  shareableMidiRef = null;
   updateTrackAttributionUI();
 }
 
@@ -3164,8 +3136,6 @@ async function playRandomLongMidi() {
     const midiUrl = `${midiLibrary.midiDB}/${row.file}`;
     const buf = await (await fetch(midiUrl)).arrayBuffer();
     await loadMIDIBytes(new Uint8Array(buf), trackMetaFromLibraryRow(row));
-    // switchMode → clearTrackMeta の後にセットする（短縮共有リンク用）
-    shareableMidiRef = shareRefFromLibraryRow(row);
     updateUrlFromLibraryRow(row);
   } catch (err) {
     console.error("Random MIDI load failed:", err);
