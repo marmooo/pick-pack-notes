@@ -1653,7 +1653,7 @@ export class RhythmGame {
       const drawBot = Math.min(H, yBot);
       if (drawBot <= drawTop) continue;
 
-      // 拾われたノートは非表示
+      // 獲得したノートはキャラに回収されて消える（従来どおり）
       if (note.picked) continue;
 
       const laneColor = laneColors[note.lane % laneColors.length];
@@ -1680,14 +1680,27 @@ export class RhythmGame {
           : ((note.noteNumber % emojis.length) + emojis.length) %
             emojis.length;
         const emoji = emojis[idx];
-        // ノートの中心（透視変換の中点）。長いノートは下端（判定線側）に寄せる
-        const noteH = drawBot - drawTop;
-        const midY = noteH > laneW * 0.6
-          ? drawBot - Math.min(noteH * 0.35, laneW * 0.45)
-          : (drawTop + drawBot) / 2;
-        const scMid = this.#sc(midY, btnBot, o.perspective ?? 0);
-        const ex =
-          (this.#perspX(note.lane, laneW, W, midY, btnBot, o.perspective ?? 0) +
+        // 位置・サイズは「画面に見えている部分」ではなく真のノート座標で計算する。
+        // drawTop/drawBot（クランプ後）を使うと、画面下端から抜けるときに
+        // 見える高さが縮み、絵文字が端で小さくなりながら吸い込まれるように消える。
+        // 真の yTop/yBot を使えば大きさはそのまま画面外へ素通りする。
+        const trueH = yBot - yTop;
+        const midY = trueH > laneW * 0.6
+          ? yBot - Math.min(trueH * 0.35, laneW * 0.45)
+          : (yTop + yBot) / 2;
+        // 完全に画面外なら描かない（キャンバス外の巨大 draw を避ける）
+        if (midY < -laneW || midY > H + laneW) {
+          // fall through to trail only if needed — skip emoji
+        } else {
+          const scMid = this.#sc(midY, btnBot, o.perspective ?? 0);
+          const ex = (this.#perspX(
+            note.lane,
+            laneW,
+            W,
+            midY,
+            btnBot,
+            o.perspective ?? 0,
+          ) +
             this.#perspX(
               note.lane + 1,
               laneW,
@@ -1696,33 +1709,43 @@ export class RhythmGame {
               btnBot,
               o.perspective ?? 0,
             )) / 2;
-        // レーン幅基準のサイズ（高さに依存しすぎないよう量子化前提で安定させる）
-        const emojiSize = Math.max(
-          12,
-          Math.round(Math.min(noteH * 0.95, laneW * scMid * 0.92)),
-        );
-        const oc = getEmojiCanvas(emoji, emojiSize);
-        const drawSize = quantizeEmojiSize(emojiSize);
-        if (oc) {
-          ctx.shadowColor = isTargeted ? "#ffffff" : color;
-          ctx.shadowBlur = (glow ? 18 : isTargeted ? 10 : 4) * d;
-          ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-          ctx.drawImage(
-            oc,
-            ex - drawSize / 2,
-            midY - drawSize / 2,
-            drawSize,
-            drawSize,
+          // レーン幅 × 遠近 sc のみ（見える高さでは制限しない）
+          const emojiSize = Math.max(
+            12,
+            Math.round(laneW * scMid * 0.92),
           );
+          const oc = getEmojiCanvas(emoji, emojiSize);
+          const drawSize = quantizeEmojiSize(emojiSize);
+          if (oc) {
+            ctx.shadowColor = isTargeted ? "#ffffff" : color;
+            ctx.shadowBlur = (glow ? 18 : isTargeted ? 10 : 4) * d;
+            ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+            ctx.drawImage(
+              oc,
+              ex - drawSize / 2,
+              midY - drawSize / 2,
+              drawSize,
+              drawSize,
+            );
+          }
         }
-        // 長いノートは薄い軌跡バーを残して長さを示す
-        if (noteH > drawSize * 1.35) {
+        // 長いノートは薄い軌跡バーを残して長さを示す（見える範囲のみ）
+        const noteH = drawBot - drawTop;
+        const drawSizeApprox = Math.max(
+          12,
+          laneW * this.#sc(
+            Math.min(Math.max(midY, 0), H),
+            btnBot,
+            o.perspective ?? 0,
+          ) * 0.92,
+        );
+        if (noteH > drawSizeApprox * 1.35) {
           ctx.shadowBlur = 0;
           trap(
             note.lane,
             1,
             drawTop,
-            drawBot - drawSize * 0.35,
+            drawBot - Math.min(noteH * 0.35, drawSizeApprox * 0.35),
             color,
             alpha * 0.22,
           );
