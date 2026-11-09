@@ -1618,7 +1618,8 @@ export class RhythmGame {
     const playerLane = this.#playerLane;
 
     const prevAlpha = ctx.globalAlpha;
-    ctx.shadowBlur = glow ? 16 * d : 0;
+    // ノート本体（タイル／絵文字）に shadowBlur は使わない（負荷・滲み対策）
+    ctx.shadowBlur = 0;
 
     const trap = (lane, width, yTop, yBot, fillStyle, alpha) => {
       const scBot = this.#sc(yBot, btnBot, p);
@@ -1680,45 +1681,37 @@ export class RhythmGame {
           : ((note.noteNumber % emojis.length) + emojis.length) %
             emojis.length;
         const emoji = emojis[idx];
-        // 位置・サイズは「画面に見えている部分」ではなく真のノート座標で計算する。
-        // drawTop/drawBot（クランプ後）を使うと、画面下端から抜けるときに
-        // 見える高さが縮み、絵文字が端で小さくなりながら吸い込まれるように消える。
-        // 真の yTop/yBot を使えば大きさはそのまま画面外へ素通りする。
-        const trueH = yBot - yTop;
+        // 位置・サイズは真のノート座標（yTop/yBot）で計算する。
+        // 画面クランプ後の drawTop/drawBot を使うと、下端から抜けるときに
+        // 見える高さが縮み、絵文字が端で小さくなりながら消えるため。
+        const trueH = Math.max(0, yBot - yTop);
         const midY = trueH > laneW * 0.6
           ? yBot - Math.min(trueH * 0.35, laneW * 0.45)
           : (yTop + yBot) / 2;
-        // 完全に画面外なら描かない（キャンバス外の巨大 draw を避ける）
-        if (midY < -laneW || midY > H + laneW) {
-          // fall through to trail only if needed — skip emoji
-        } else {
+        let drawSize = 12;
+        if (midY >= -laneW && midY <= H + laneW) {
           const scMid = this.#sc(midY, btnBot, o.perspective ?? 0);
-          const ex = (this.#perspX(
-            note.lane,
-            laneW,
-            W,
-            midY,
-            btnBot,
-            o.perspective ?? 0,
-          ) +
-            this.#perspX(
-              note.lane + 1,
-              laneW,
-              W,
-              midY,
-              btnBot,
-              o.perspective ?? 0,
-            )) / 2;
-          // レーン幅 × 遠近 sc のみ（見える高さでは制限しない）
-          const emojiSize = Math.max(
-            12,
-            Math.round(laneW * scMid * 0.92),
-          );
+          const ex =
+            (this.#perspX(note.lane, laneW, W, midY, btnBot, o.perspective ?? 0) +
+              this.#perspX(
+                note.lane + 1,
+                laneW,
+                W,
+                midY,
+                btnBot,
+                o.perspective ?? 0,
+              )) / 2;
+          // 折衷: レーン幅×sc を基本に、真のノート高さは超えない。
+          // 画面に見えている高さ（クランプ後）では制限しないので、
+          // 下端で急に小さくならず素通りする。
+          const byLane = laneW * scMid * 0.92;
+          const byHeight = trueH > 0 ? trueH * 0.95 : byLane;
+          const emojiSize = Math.max(12, Math.round(Math.min(byLane, byHeight)));
           const oc = getEmojiCanvas(emoji, emojiSize);
-          const drawSize = quantizeEmojiSize(emojiSize);
+          drawSize = quantizeEmojiSize(emojiSize);
           if (oc) {
-            ctx.shadowColor = isTargeted ? "#ffffff" : color;
-            ctx.shadowBlur = (glow ? 18 : isTargeted ? 10 : 4) * d;
+            // 絵文字は shadowBlur なし（負荷軽減・輪郭の滲み防止）
+            ctx.shadowBlur = 0;
             ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
             ctx.drawImage(
               oc,
@@ -1730,32 +1723,23 @@ export class RhythmGame {
           }
         }
         // 長いノートは薄い軌跡バーを残して長さを示す（見える範囲のみ）
-        const noteH = drawBot - drawTop;
-        const drawSizeApprox = Math.max(
-          12,
-          laneW * this.#sc(
-            Math.min(Math.max(midY, 0), H),
-            btnBot,
-            o.perspective ?? 0,
-          ) * 0.92,
-        );
-        if (noteH > drawSizeApprox * 1.35) {
+        const visH = drawBot - drawTop;
+        if (visH > drawSize * 1.35) {
           ctx.shadowBlur = 0;
           trap(
             note.lane,
             1,
             drawTop,
-            drawBot - Math.min(noteH * 0.35, drawSizeApprox * 0.35),
+            drawBot - Math.min(visH * 0.35, drawSize * 0.35),
             color,
             alpha * 0.22,
           );
         }
       } else {
-        ctx.shadowColor = isTargeted ? "#ffffff" : color;
-        ctx.shadowBlur = (glow ? 20 : isTargeted ? 12 : 6) * d;
+        ctx.shadowBlur = 0;
         trap(note.lane, 1, drawTop, drawBot, color, alpha);
 
-        // 先頭（下端）の光沢ハイライト
+        // 先頭（下端）の光沢ハイライト（塗りのみ、blur なし）
         const shineH = Math.min(8 * d, (drawBot - drawTop) * 0.35);
         if (yBot <= H && shineH > 1) {
           trap(
