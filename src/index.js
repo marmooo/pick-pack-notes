@@ -1739,6 +1739,18 @@ function drawWrappedTrackLabel(ctx, x, y, maxWidth, lineHeight, maxLines = 2) {
   return lines.length;
 }
 
+function formatTrackShareLabel(maxChars = 48) {
+  const meta = currentTrackMeta;
+  if (!meta) return "";
+  const title = (meta.title || "").trim();
+  const site = (meta.siteName || "").trim();
+  if (!title && !site) return "";
+  let t = title;
+  if (t.length > maxChars) t = t.slice(0, maxChars - 1) + "…";
+  if (t && site) return `${t} · ${site}`;
+  return t || site;
+}
+
 function scoreCardFileName() {
   return `pick-pack-notes-${new Date().toISOString().slice(0, 10)}.png`;
 }
@@ -1781,8 +1793,10 @@ function getShareUrl() {
 
 document.getElementById("btnShareScore")?.addEventListener("click", () => {
   const shareUrl = getShareUrl();
-  const text =
-    `Pick Pack Notes: ${lastResult.score} points · CLEAR · ${config.difficulty}\n${shareUrl}`;
+  const track = formatTrackShareLabel(48);
+  const text = track
+    ? `Pick Pack Notes: ${lastResult.score} points · ${config.difficulty} · ${track}`
+    : `Pick Pack Notes: ${lastResult.score} points · ${config.difficulty}`;
   const canvas = document.getElementById("scoreCardCanvas");
   const share = async () => {
     try {
