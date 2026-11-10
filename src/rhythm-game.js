@@ -1674,6 +1674,12 @@ export class RhythmGame {
 
       // 絵文字モード：色付きバーの代わりに絵文字を落とす
       // emojiIndex は thinNotes 時に groupId 単位でランダム割り当て済み
+      // ノートの本来の高さ（trueH）にできるだけ一致させるため、
+      // 理想サイズで何個分入るかを計算し、同じ絵文字を縦に敷き詰める。
+      //
+      // count（個数）は判定ライン基準で安定して決める（落下中に 2→1 に変わらない）
+      // 実際の描画サイズは現在位置のパースペクティブを反映させる（遠近感を維持）
+      // 絵文字モードでは矩形（軌跡バー）は一切描画しない。
       if (o.emojiMode && o.emojis && o.emojis.length > 0) {
         const emojis = o.emojis;
         const idx = Number.isFinite(note.emojiIndex)
@@ -1681,60 +1687,60 @@ export class RhythmGame {
           : ((note.noteNumber % emojis.length) + emojis.length) %
             emojis.length;
         const emoji = emojis[idx];
+
         // 位置・サイズは真のノート座標（yTop/yBot）で計算する。
         // 画面クランプ後の drawTop/drawBot を使うと、下端から抜けるときに
         // 見える高さが縮み、絵文字が端で小さくなりながら消えるため。
         const trueH = Math.max(0, yBot - yTop);
-        const midY = trueH > laneW * 0.6
-          ? yBot - Math.min(trueH * 0.35, laneW * 0.45)
-          : (yTop + yBot) / 2;
-        let drawSize = 12;
-        if (midY >= -laneW && midY <= H + laneW) {
-          const scMid = this.#sc(midY, btnBot, o.perspective ?? 0);
-          const ex =
-            (this.#perspX(note.lane, laneW, W, midY, btnBot, o.perspective ?? 0) +
-              this.#perspX(
-                note.lane + 1,
-                laneW,
-                W,
-                midY,
-                btnBot,
-                o.perspective ?? 0,
-              )) / 2;
-          // 折衷: レーン幅×sc を基本に、真のノート高さは超えない。
-          // 画面に見えている高さ（クランプ後）では制限しないので、
-          // 下端で急に小さくならず素通りする。
-          const byLane = laneW * scMid * 0.92;
-          const byHeight = trueH > 0 ? trueH * 0.95 : byLane;
-          const emojiSize = Math.max(12, Math.round(Math.min(byLane, byHeight)));
-          const oc = getEmojiCanvas(emoji, emojiSize);
-          drawSize = quantizeEmojiSize(emojiSize);
-          if (oc) {
-            // 絵文字は shadowBlur なし（負荷軽減・輪郭の滲み防止）
-            ctx.shadowBlur = 0;
-            ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        if (trueH <= 0) continue;
+
+        const p = o.perspective ?? 0;
+        const midY = (yTop + yBot) / 2;
+
+        // --- count は安定した基準で決める（判定ラインのスケールを使用）---
+        const scHit = this.#sc(hitY, btnBot, p);
+        const idealSizeStable = Math.max(12, laneW * scHit * 0.90);
+        let count = Math.max(1, Math.round(trueH / idealSizeStable));
+        count = Math.min(count, 8);
+
+        // --- 描画サイズは「現在位置のパースペクティブ」を反映 ---
+        // 近づくほど大きくなる遠近感を維持しつつ、count は固定
+        const scNow = this.#sc(midY, btnBot, p);
+        const idealNow = Math.max(12, laneW * scNow * 0.90);
+        // 高さ方向は trueH を等分した値を上限にする
+        const size = Math.max(
+          12,
+          Math.min(idealNow, (trueH / count) * 0.92),
+        );
+        const drawSize = quantizeEmojiSize(size);
+        const oc = getEmojiCanvas(emoji, drawSize);
+        if (!oc) continue;
+
+        // レーン中心のX（パースペクティブ対応）
+        const ex = (this.#perspX(note.lane, laneW, W, midY, btnBot, p) +
+          this.#perspX(note.lane + 1, laneW, W, midY, btnBot, p)) / 2;
+
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+        // 上から下へ等間隔に並べる（余白を上下＋間に均等に取る）
+        const totalUsed = drawSize * count;
+        const gap = (trueH - totalUsed) / (count + 1);
+        let cy = yTop + gap + drawSize / 2;
+
+        for (let k = 0; k < count; k++) {
+          if (cy > -drawSize && cy < H + drawSize) {
             ctx.drawImage(
               oc,
               ex - drawSize / 2,
-              midY - drawSize / 2,
+              cy - drawSize / 2,
               drawSize,
               drawSize,
             );
           }
+          cy += drawSize + gap;
         }
-        // 長いノートは薄い軌跡バーを残して長さを示す（見える範囲のみ）
-        const visH = drawBot - drawTop;
-        if (visH > drawSize * 1.35) {
-          ctx.shadowBlur = 0;
-          trap(
-            note.lane,
-            1,
-            drawTop,
-            drawBot - Math.min(visH * 0.35, drawSize * 0.35),
-            color,
-            alpha * 0.22,
-          );
-        }
+        // 絵文字モードでは矩形（軌跡バー）は描画しない
       } else {
         ctx.shadowBlur = 0;
         trap(note.lane, 1, drawTop, drawBot, color, alpha);
