@@ -1665,11 +1665,14 @@ export class RhythmGame {
       if (note.missed) {
         color = DANGER_COLOR;
         alpha = 0.45;
-      } else if (isTargeted) {
-        // 自機とレーンが合っているノートは明るく光る
-        alpha = note.isSlice ? 0.65 : 1.0;
-      } else {
-        alpha = note.isSlice ? 0.45 : 0.88;
+      } else if (!o.emojiMode) {
+        // 通常モードのみ透明度を変える（絵文字モードでは不要なので常に不透明）
+        if (isTargeted) {
+          // 自機とレーンが合っているノートは明るく光る
+          alpha = note.isSlice ? 0.65 : 1.0;
+        } else {
+          alpha = note.isSlice ? 0.45 : 0.88;
+        }
       }
 
       // 絵文字モード：色付きバーの代わりに絵文字を落とす
