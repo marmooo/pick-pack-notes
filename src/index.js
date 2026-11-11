@@ -1126,6 +1126,7 @@ function applyConfigToGame(cfg) {
   const characterChanged = (cfg.characterId ?? 1) !== (config.characterId ?? 1);
 
   config = cfg;
+  if (laneOrDiffChanged) updateDocumentTitle();
   // maxPixelRatio 変更時は実効 dpr を更新（構造変更時は後続の buildGame / resize で反映）
   if (dprChanged) dpr = computeDpr();
   // MIDI サンプルキャッシュ粒度（再生中でも次回ボイス生成から効く）
@@ -1749,6 +1750,22 @@ function formatTrackShareLabel(maxChars = 48) {
   if (t.length > maxChars) t = t.slice(0, maxChars - 1) + "…";
   if (t && site) return `${t} · ${site}`;
   return t || site;
+}
+
+/** タブタイトル: アプリ名固定 + 曲情報 + 難易度（一貫性優先） */
+function updateDocumentTitle() {
+  const meta = currentTrackMeta;
+  const title = (meta?.title || "").trim();
+  const site = (meta?.siteName || "").trim();
+  const diff = config.difficulty || "NORMAL";
+  const parts = [];
+  if (title) parts.push(title);
+  if (site) parts.push(site);
+  if (parts.length > 0) {
+    document.title = `Pick Pack Notes: ${parts.join(" · ")} · ${diff}`;
+  } else {
+    document.title = "Pick Pack Notes";
+  }
 }
 
 function scoreCardFileName() {
@@ -3092,6 +3109,7 @@ async function loadMIDIFromQuery() {
 function clearTrackMeta() {
   currentTrackMeta = null;
   updateTrackAttributionUI();
+  updateDocumentTitle();
 }
 
 function setTrackMeta(meta) {
@@ -3106,6 +3124,7 @@ function setTrackMeta(meta) {
     }
     : null;
   updateTrackAttributionUI();
+  updateDocumentTitle();
 }
 
 function updateTrackAttributionUI() {
