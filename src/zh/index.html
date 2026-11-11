@@ -1065,12 +1065,15 @@
                 </div>
 
                 <div class="mb-3">
-                  <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="emojiMode" checked>
-                    <label class="form-check-label" for="emojiMode">表情符号音符</label>
-                  </div>
+                  <label class="form-label" for="noteType">音符类型</label>
+                  <select class="form-select form-select-sm" id="noteType">
+                    <option value="tile">方块</option>
+                    <option value="food" selected>食物</option>
+                    <option value="animal">动物</option>
+                    <option value="object">物品</option>
+                  </select>
                   <div class="small text-muted mt-1">
-                    音符以食物表情代替色条下落。
+                    长音符用相同表情符号铺满（不分割）。
                   </div>
                 </div>
 

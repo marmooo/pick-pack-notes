@@ -13,8 +13,11 @@
 import { Midy } from "https://cdn.jsdelivr.net/gh/marmooo/midy@0.7.3/dist/midy.wasm.js";
 import { Modal } from "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/+esm";
 import {
+  ANIMAL_EMOJIS,
   DIFFICULTIES,
   extractNotesFromMidy,
+  FOOD_EMOJIS,
+  OBJECT_EMOJIS,
   thinNotes,
 } from "./rhythm-game.js";
 import { MidiLibrary } from "https://marmooo.github.io/free-midi/midi-library.js";
@@ -66,6 +69,20 @@ const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const MIN_LANES = 4;
 const MAX_LANES = 12;
+/** noteType → 絵文字配列。tile のときは空（描画で使わない）。 */
+function getEmojisForType(noteType) {
+  switch (noteType) {
+    case "animal":
+      return ANIMAL_EMOJIS;
+    case "object":
+      return OBJECT_EMOJIS;
+    case "food":
+      return FOOD_EMOJIS;
+    default:
+      return [];
+  }
+}
+
 const DEFAULT_CONFIG = {
   laneCount: 6,
   scrollSpeed: 700,
@@ -97,7 +114,7 @@ const DEFAULT_CONFIG = {
   // Midy の sample キャッシュ粒度。none → ads → adsr → note → segment → chunk。
   // 高いほど複雑な MIDI で効率が良いが、iOS の OfflineAudioContext 不具合で落ちやすくなる。
   cacheMode: isIOS ? "none" : "chunk",
-  emojiMode: true, // true = 食べ物絵文字でノートを表示
+  noteType: "food", // "tile" | "food" | "animal" | "object"
   characterId: 1, // 1〜10 = characters/N.webp / "custom" = ユーザー画像
 };
 
@@ -127,6 +144,14 @@ function loadConfig() {
           "{}",
       ),
     };
+
+    if (loaded.noteType == null && typeof loaded.emojiMode === "boolean") {
+      loaded.noteType = loaded.emojiMode ? "food" : "tile";
+    }
+    if (!["tile", "food", "animal", "object"].includes(loaded.noteType)) {
+      loaded.noteType = "food";
+    }
+    delete loaded.emojiMode;
     return loaded;
   } catch (err) {
     console.warn("Failed to load saved config, falling back to defaults:", err);
@@ -478,7 +503,8 @@ function buildWorkerOptions() {
     initialHp: currentHp,
     // canvas 座標系（dpr込み）での navbar 回避量。HUD 描画開始 y に加算する。
     topInset: computeTopInset(),
-    emojiMode: config.emojiMode ?? false,
+    noteType: config.noteType ?? "food",
+    emojis: getEmojisForType(config.noteType ?? "food"),
   };
 }
 
@@ -1184,7 +1210,8 @@ function applyConfigToGame(cfg) {
           laneOpacity: config.laneOpacity ?? 0.35,
           scrollSpeed: config.scrollSpeed,
           perspective: (config.perspectiveEnabled ?? true) ? PERSPECTIVE : 0,
-          emojiMode: config.emojiMode ?? false,
+          noteType: config.noteType ?? "food",
+          emojis: getEmojisForType(config.noteType ?? "food"),
         },
       });
     }
@@ -1207,7 +1234,8 @@ function applyConfigToGame(cfg) {
           laneOpacity: config.laneOpacity ?? 0.35,
           scrollSpeed: config.scrollSpeed,
           perspective: (config.perspectiveEnabled ?? true) ? PERSPECTIVE : 0,
-          emojiMode: config.emojiMode ?? false,
+          noteType: config.noteType ?? "food",
+          emojis: getEmojisForType(config.noteType ?? "food"),
         },
       });
     }
@@ -1981,7 +2009,7 @@ function readSettingsUI() {
         : config.laneLineColor ?? "",
     perspectiveEnabled:
       document.getElementById("perspectiveEnabled")?.checked ?? true,
-    emojiMode: document.getElementById("emojiMode")?.checked ?? false,
+    noteType: document.getElementById("noteType")?.value || "food",
     characterId: (() => {
       const raw = document.querySelector('input[name="characterId"]:checked')
         ?.value;
@@ -2040,8 +2068,8 @@ function openSettings() {
   sv("difficulty", config.difficulty);
   const persEl = document.getElementById("perspectiveEnabled");
   if (persEl) persEl.checked = config.perspectiveEnabled ?? true;
-  const emojiEl = document.getElementById("emojiMode");
-  if (emojiEl) emojiEl.checked = config.emojiMode ?? false;
+  const noteTypeEl = document.getElementById("noteType");
+  if (noteTypeEl) noteTypeEl.value = config.noteType ?? "food";
   {
     const cid = config.characterId ?? 1;
     document.querySelectorAll('input[name="characterId"]').forEach((el) => {

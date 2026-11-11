@@ -1057,12 +1057,15 @@
                 </div>
 
                 <div class="mb-3">
-                  <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="emojiMode" checked>
-                    <label class="form-check-label" for="emojiMode">Emoji notes</label>
-                  </div>
+                  <label class="form-label" for="noteType">Note type</label>
+                  <select class="form-select form-select-sm" id="noteType">
+                    <option value="tile">Tiles</option>
+                    <option value="food" selected>Food</option>
+                    <option value="animal">Animals</option>
+                    <option value="object">Objects</option>
+                  </select>
                   <div class="small text-muted mt-1">
-                    Notes fall as food emojis instead of bars.
+                    Long notes are filled with the same emoji (not split).
                   </div>
                 </div>
 

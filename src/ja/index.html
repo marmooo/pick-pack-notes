@@ -1080,12 +1080,15 @@
                 </div>
 
                 <div class="mb-3">
-                  <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="emojiMode" checked>
-                    <label class="form-check-label" for="emojiMode">絵文字ノート</label>
-                  </div>
+                  <label class="form-label" for="noteType">ノーツの種類</label>
+                  <select class="form-select form-select-sm" id="noteType">
+                    <option value="tile">タイル</option>
+                    <option value="food" selected>食べ物</option>
+                    <option value="animal">動物</option>
+                    <option value="object">物</option>
+                  </select>
                   <div class="small text-muted mt-1">
-                    ノーツの代わりに食べ物の絵文字が降ります。
+                    ロングノーツは同じ絵文字で敷き詰めます（分割しません）。
                   </div>
                 </div>
 
