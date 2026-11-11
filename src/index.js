@@ -1856,7 +1856,7 @@ document.getElementById("btnShareScore")?.addEventListener("click", () => {
   const shareUrl = getShareUrl();
   const track = formatTrackShareLabel(48);
   const text = track
-    ? `Pick Pack Notes: ${lastResult.score} points · ${config.difficulty} · ${track}`
+    ? `Pick Pack Notes: ${lastResult.score} points · ${track} · ${config.difficulty}`
     : `Pick Pack Notes: ${lastResult.score} points · ${config.difficulty}`;
   const canvas = document.getElementById("scoreCardCanvas");
   const share = async () => {
@@ -2256,6 +2256,7 @@ function goToStartScreen() {
   if (gamePhase === "playing") stopRaf();
   stopAllPlayback();
   clearTrackMeta();
+  clearLibraryUrl();
   showScreen("start");
 }
 document.getElementById("btnChangeFileReady").addEventListener(
