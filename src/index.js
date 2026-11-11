@@ -1835,8 +1835,9 @@ document.getElementById("btnShareScore")?.addEventListener("click", () => {
       /* fall through */
     }
     // text に URL を含めたうえで、url パラメータにも載せる（両対応）
+    const textForX = text.replaceAll("@", "@\u200B");
     const url = `https://twitter.com/intent/tweet?text=${
-      encodeURIComponent(text)
+      encodeURIComponent(textForX)
     }&url=${encodeURIComponent(shareUrl)}`;
     globalThis.open(url, "_blank", "noopener,noreferrer");
   };
