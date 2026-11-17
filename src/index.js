@@ -691,7 +691,7 @@ async function loadCharacterFile() {
   });
 }
 
-async function clearCharacterFile() {
+async function _clearCharacterFile() {
   const db = await openBackgroundDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(BG_STORE, "readwrite");
@@ -1461,6 +1461,7 @@ function drawScoreCard(grade, pickRate) {
   };
   const accent = gradeColors[grade] || palette.pick;
 
+  // Background + soft accent glow (circular judgment signature on the right).
   const bg = ctx.createLinearGradient(0, 0, w, h);
   bg.addColorStop(0, "#10151b");
   bg.addColorStop(0.58, "#151d22");
@@ -1473,6 +1474,7 @@ function drawScoreCard(grade, pickRate) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, w, h);
 
+  // Product wordmark: Pick (neutral) Pack (accent) Notes.
   ctx.fillStyle = accent;
   ctx.beginPath();
   ctx.arc(66, 70, 10, 0, Math.PI * 2);
@@ -1494,6 +1496,7 @@ function drawScoreCard(grade, pickRate) {
     141,
   );
 
+  // Left column
   const history = playHistory.slice(-200);
   ctx.font = "700 22px system-ui, sans-serif";
   ctx.fillStyle = palette.mute;
@@ -1816,34 +1819,6 @@ function drawWrappedTrackLabel(ctx, x, y, maxWidth, lineHeight, maxLines = 2) {
   return lines.length;
 }
 
-function formatTrackShareLabel(maxChars = 48) {
-  const meta = currentTrackMeta;
-  if (!meta) return "";
-  const title = (meta.title || "").trim();
-  const site = (meta.siteName || "").trim();
-  if (!title && !site) return "";
-  let t = title;
-  if (t.length > maxChars) t = t.slice(0, maxChars - 1) + "…";
-  if (t && site) return `${t} · ${site}`;
-  return t || site;
-}
-
-/** タブタイトル: アプリ名固定 + 曲情報 + 難易度（一貫性優先） */
-function updateDocumentTitle() {
-  const meta = currentTrackMeta;
-  const title = (meta?.title || "").trim();
-  const site = (meta?.siteName || "").trim();
-  const diff = config.difficulty || "NORMAL";
-  const parts = [];
-  if (title) parts.push(title);
-  if (site) parts.push(site);
-  if (parts.length > 0) {
-    document.title = `Pick Pack Notes: ${parts.join(" · ")} · ${diff}`;
-  } else {
-    document.title = "Pick Pack Notes";
-  }
-}
-
 function scoreCardFileName() {
   return `pick-pack-notes-${new Date().toISOString().slice(0, 10)}.png`;
 }
@@ -1862,28 +1837,32 @@ document.getElementById("btnSaveScore")?.addEventListener("click", () => {
   canvas?.toBlob((blob) => blob && downloadScoreCard(blob), "image/png");
 });
 
-/** アプリ本体のベース URL（言語パス込み、クエリなし） */
-function getAppBaseUrl() {
-  return `${location.origin}${location.pathname}`;
+function formatTrackShareLabel(maxChars = 48) {
+  const meta = currentTrackMeta;
+  if (!meta) return "";
+  const title = (meta.title || "").trim();
+  const site = (meta.siteName || "").trim();
+  if (!title && !site) return "";
+  let t = title;
+  if (t.length > maxChars) t = t.slice(0, maxChars - 1) + "…";
+  if (t && site) return `${t} · ${site}`;
+  return t || site;
 }
 
-/**
- * 共有用 URL。ライブラリ由来なら現在の ?c=&i= を使い、それ以外はアプリ本体。
- * （他ゲームと同じ location ベース）
- */
-function getShareUrl() {
-  const params = new URLSearchParams(location.search);
-  if (params.has("c") && params.has("i")) {
-    const share = new URLSearchParams();
-    share.set("c", params.get("c"));
-    share.set("i", params.get("i"));
-    if (params.get("db") === "c") share.set("db", "c");
-    // 難易度を共有リンクに含める（開いた側で同じ難易度になる）
-    const diff = config.difficulty || "NORMAL";
-    if (DIFFICULTIES[diff]) share.set("d", diff);
-    return `${getAppBaseUrl()}?${share.toString()}`;
+/** タブタイトル: アプリ名固定 + 曲情報 + 難易度 */
+function updateDocumentTitle() {
+  const meta = currentTrackMeta;
+  const title = (meta?.title || "").trim();
+  const site = (meta?.siteName || "").trim();
+  const diff = config.difficulty || "NORMAL";
+  const parts = [];
+  if (title) parts.push(title);
+  if (site) parts.push(site);
+  if (parts.length > 0) {
+    document.title = `Pick Pack Notes: ${parts.join(" · ")} · ${diff}`;
+  } else {
+    document.title = "Pick Pack Notes";
   }
-  return getAppBaseUrl();
 }
 
 document.getElementById("btnShareScore")?.addEventListener("click", () => {
@@ -2310,7 +2289,7 @@ document.getElementById("btnApplySettings").addEventListener(
 // カスタムキャラ画像
 document.getElementById("characterFile")?.addEventListener(
   "change",
-  async (e) => {
+  (e) => {
     const file = e.currentTarget.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
     pendingCharacterBlob = file;
@@ -3020,6 +2999,23 @@ selectPanel.addEventListener("drop", (e) => {
 // ---------------------------------------------------------------------------
 
 /** MIDI ライブラリ行から短縮クエリ (?c=&i=) を URL に反映する（履歴は置き換え） */
+
+/** 共有用 URL。ライブラリ由来なら現在の ?c=&i= を使い、それ以外はアプリ本体 */
+function getShareUrl() {
+  const params = new URLSearchParams(location.search);
+  if (params.has("c") && params.has("i")) {
+    const share = new URLSearchParams();
+    share.set("c", params.get("c"));
+    share.set("i", params.get("i"));
+    if (params.get("db") === "c") share.set("db", "c");
+    // if (params.get("title")) share.set("title", params.get("title"));
+    const diff = config.difficulty || "NORMAL";
+    if (DIFFICULTIES[diff]) share.set("d", diff);
+    return `${location.origin}${location.pathname}?${share.toString()}`;
+  }
+  return `${location.origin}${location.pathname}`;
+}
+
 function updateUrlFromLibraryRow(row) {
   if (!row?.file) return;
   const c = row.collectionId || String(row.file).split("/")[0] || "";
@@ -3031,6 +3027,7 @@ function updateUrlFromLibraryRow(row) {
   params.set("c", c);
   params.set("i", String(i));
   if (midiLibrary.midiDB === MIDI_DB_CLASSICAL) params.set("db", "c");
+  if (row.title) params.set("title", row.title);
   const diff = config.difficulty || "NORMAL";
   if (DIFFICULTIES[diff]) params.set("d", diff);
   const url = `${location.pathname}?${params.toString()}${location.hash || ""}`;
@@ -3169,7 +3166,10 @@ function trackMetaFromLibraryRow(row) {
   const collectionId = String(row.file || "").split("/")[0] || "";
   const col = collectionId ? midiLibrary.collections.get(collectionId) : null;
   const web = row.web || col?.web || "";
-  const siteName = row.collection || col?.name || collectionId || "";
+  // Prefer collections.json `name` (display name) over row.collection / id.
+  // Share-link loads may have no row.collection and an empty collections Map;
+  // callers that need the proper name should ensure collections are available.
+  const siteName = col?.name || row.collection || collectionId || "";
   const license = row.license || col?.license || "";
   const title = row.title || "";
   const composer = row.composer || col?.composer || "";
@@ -3179,7 +3179,7 @@ function trackMetaFromLibraryRow(row) {
 
 /**
  * ?c=<siteId>&i=<index>（classical は &db=c）から曲を読み込む。
- * free-midi / 自アプリの共有リンク専用（旧 ?q= は廃止）。
+ * free-midi からの共有リンク専用（旧 ?q= は廃止）。
  */
 async function loadMIDIFromQuery() {
   const query = new URLSearchParams(location.search);
@@ -3193,7 +3193,7 @@ async function loadMIDIFromQuery() {
     config.difficulty = d;
     const diffEl = document.getElementById("difficulty");
     if (diffEl) diffEl.value = d;
-    updateDocumentTitle();
+    if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   }
 
   try {
@@ -3208,8 +3208,19 @@ async function loadMIDIFromQuery() {
       throw new Error(`MIDI not found: ${collectionId}#${index}`);
     }
 
-    // ライブラリ側と同じメタ補完（collections が未ロードでも最低限動く）
-    const col = midiLibrary.collections?.get(collectionId);
+    // Share links intentionally skip full playlist load, but we still need
+    // collections.json so the score card / attribution can show the display
+    // name (e.g. "般若's MIDIの里") instead of the URL id ("般若sMIDIの里").
+    if (!midiLibrary.collections.has(collectionId)) {
+      try {
+        const cols = await (await fetch(`${dbBase}/collections.json`)).json();
+        for (const c of cols) midiLibrary.collections.set(c.id, c);
+      } catch (err) {
+        console.warn("Failed to load collections for share link meta:", err);
+      }
+    }
+
+    const col = midiLibrary.collections.get(collectionId);
     if (col) {
       if (!row.collection) row.collection = col.name;
       if (!row.composer && col.composer) row.composer = col.composer;
@@ -3219,7 +3230,6 @@ async function loadMIDIFromQuery() {
     row.collectionId = collectionId;
     row.index = index;
 
-    // classical を開いたときは DB も切り替えておく
     if (dbBase !== midiLibrary.midiDB) {
       currentMidiDb = dbBase;
       midiLibrary.midiDB = dbBase;
@@ -3228,7 +3238,6 @@ async function loadMIDIFromQuery() {
     const midiUrl = `${dbBase}/${row.file}`;
     const buf = await (await fetch(midiUrl)).arrayBuffer();
     await loadMIDIBytes(new Uint8Array(buf), trackMetaFromLibraryRow(row));
-    // URL は既に ?c=&i= なのでそのまま共有に使える
   } catch (error) {
     console.error("Failed to load MIDI from query:", error);
     alert(t("midiFromQueryFailedPrefix") + (error?.message || error));
@@ -3368,8 +3377,8 @@ async function playRandomLongMidi() {
   randomMidiBusy = true;
   setRandomMidiButtonsBusy(true);
   try {
-    const midiUrl = `${midiLibrary.midiDB}/${row.file}`;
-    const buf = await (await fetch(midiUrl)).arrayBuffer();
+    const buf = await (await fetch(`${midiLibrary.midiDB}/${row.file}`))
+      .arrayBuffer();
     await loadMIDIBytes(new Uint8Array(buf), trackMetaFromLibraryRow(row));
     updateUrlFromLibraryRow(row);
   } catch (err) {
