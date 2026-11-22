@@ -42,7 +42,7 @@ if (!globalThis.crossOriginIsolated) {
 // Select midy WASM build via wasm-feature-detect
 // Priority: threaded-simd > threads > simd > plain wasm
 // ---------------------------------------------------------------------------
-const MIDY_BASE = "https://cdn.jsdelivr.net/gh/marmooo/midy@0.7.4/dist";
+const MIDY_BASE = "https://cdn.jsdelivr.net/gh/marmooo/midy@0.7.5/dist";
 const MIDY_BUILDS = {
   "threaded-simd": `${MIDY_BASE}/midy.wasm-threaded-simd.js`,
   "threads": `${MIDY_BASE}/midy.wasm-threads.js`,
