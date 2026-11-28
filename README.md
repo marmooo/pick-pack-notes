@@ -6,6 +6,8 @@ character left and right to align with the falling notes to collect them
 automatically without tapping. You can also play MIDI files directly and change
 the sound source using SoundFonts (SF2/SF3).
 
+- [フリーゲーム夢現](https://freegame-mugen.jp/browser/game_16419.html)
+
 ## Screenshots
 
 Title Screen ![Title Screen](screenshots/mugen/01.png)
